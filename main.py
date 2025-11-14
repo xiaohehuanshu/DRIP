@@ -59,7 +59,7 @@ def main():
 
     agent = DQN(config=CONFIG)
 
-    # agent.learn()
+    agent.learn()
 
     agent.predict()
 
