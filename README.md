@@ -1,4 +1,4 @@
-# DRIP — Deep Reinforcement for Interior Planning
+# DRIP — Data-Reward Integrated Planner for Residential Floorplan Generation
 
 
 ## Repository structure
@@ -12,6 +12,7 @@
 - `base_model/` — small pretrained base models used by the environment
 - `param/` — trained model parameter files
 - `logs/` — logs are written here during runs
+- `human_voting_data/` — human evaluation data and results
 
 ## Requirements
 
