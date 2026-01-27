@@ -18,10 +18,18 @@
 
 - Python 3.8+
 - PyTorch (matching your CUDA if using GPU)
-- torch-geometric and its dependencies
 - Other Python packages listed in `requirements.txt`
 
-Install dependencies (example):
+## Setup
+1. Create and activate a new Python environment using conda:
+```sh
+conda create -n drl_env python=3.12
+```
+2. Install pytorch. Example for CUDA 12.4:
+```sh
+pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+```
+3. Install other dependencies:
 ```sh
 pip install -r requirements.txt
 ```
