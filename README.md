@@ -38,6 +38,10 @@ pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https
 ```sh
 pip install -r requirements.txt
 ```
+4. Install fonts for generate image:
+```sh
+python utils/install_fonts.py
+```
 
 Note: torch-geometric installation may require additional platform-specific steps. See the official instructions at https://pytorch-geometric.readthedocs.io.
 
@@ -119,11 +123,18 @@ Main DRIP Environment              QwenVL Baseline Environment (Optional)
 #### Step 1: Create a separate conda environment
 
 ```bash
-conda create -n qwenvl python=3.10
+conda create -n qwenvl python=3.12
 conda activate qwenvl
 ```
 
-#### Step 2: Install QwenVL dependencies
+#### Step 2: Install pytorch
+See https://pytorch.org/get-started/previous-versions/ for the correct command based on your system and CUDA version.
+Example for CUDA 12.4:
+```sh
+pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+```
+
+#### Step 3: Install QwenVL dependencies
 
 ```bash
 pip install -r requirements_qwen.txt
@@ -138,9 +149,20 @@ The `requirements_qwen.txt` file includes:
   - `tqdm` - Progress bars
   - `Pillow` - For image processing
 
-#### Step 3: Prepare model files
+#### Step 4: Download model weights
 
-Place your model files in the following structure:
+Download the Qwen2.5-VL-7B-Instruct model weights from Hugging Face:
+
+```bash
+# Download the model using huggingface-cli
+huggingface-cli download Qwen/Qwen2.5-VL-7B-Instruct --local-dir ./base_model/Qwen2.5-VL-7B-Instruct --local-dir-use-symlinks False --resume-download
+```
+
+Alternatively, you can manually download the model from https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct and place it in `./base_model/Qwen2.5-VL-7B-Instruct/`.
+
+#### Step 5: Prepare model files
+
+Place the finetuned model files in the following structure:
 
 ```
 DRIP_NCv0/
@@ -156,15 +178,19 @@ DRIP_NCv0/
 
 ### Usage
 
+The inference mode is controlled by the `inference_mode` variable in `generator_VLM.py`:
+
+- `"single"`: Run inference on a single file
+- `"full"`: Run inference on all Excel files in the dataset directory (default)
+
 #### Single File Inference
 
-Edit `generator_VLM.py` and uncomment the single file inference section:
+Set `inference_mode = "single"` and configure the input file path:
 
 ```python
-# Single file inference
-path_in = "./dataset/data6000_graph/city/"  # Dataset path
-file = "city_large_A0.xlsx"
-infer(base_model_path, model, processor, path_in, file, output_file_path)
+inference_mode = "single"
+path_in = "./dataset/data_eval/"  # Dataset path
+file = "0.xlsx"  # Input file name
 ```
 
 Then run:
@@ -175,7 +201,14 @@ python generator_VLM.py
 
 #### Batch Inference
 
-The default configuration runs batch inference on all Excel files in the specified directory:
+Set `inference_mode = "full"` (default) to run inference on all Excel files in the dataset directory and its subdirectories:
+
+```python
+inference_mode = "full"
+path_in = "./dataset/data_eval/"  # Dataset path
+```
+
+Then run:
 
 ```bash
 python generator_VLM.py
@@ -183,75 +216,11 @@ python generator_VLM.py
 
 Results will be saved to `./logs/YYYY_MM_DD_HH_MM_SS/`.
 
-### Input/Output Format
-
-#### Input
-
-- **Excel files** containing floor plan data in the dataset directory
-- The system automatically generates environment images and prompts
-
-#### Output
-
-- **Excel files** with two sheets:
-  - `floor{N}`: Combined environment data and LLM predictions
-  - `floor{N}_llm`: Original LLM output only
-- **JPEG images**: Visualizations of the generated layouts
-
-### Code Structure
-
-#### generator_VLM.py
-
-Main inference module containing:
-- `load_model()`: Load Qwen2.5-VL model with LoRA adapter
-- `run_inference()`: Execute model inference and extract JSON output
-- `infer()`: Single file inference wrapper
-- `main()`: Batch inference entry point
-
-#### utils/make_dataset.py
-
-Prompt generation utilities:
-- `single_floor_prompt()`: Generate prompt for single floor
-- `second_floor_prompt()`: Generate prompt for second floor with first floor context
-- `generate_prompt_from_file()`: Main prompt generation function
-
-#### env_fixed_state_length.py
-
-Extended with optional QwenVL methods:
-- `prepare_prompt()`: Generate environment image and prompt messages
-- `save_llm_result()`: Save LLM inference results to Excel
-
 ### Important Notes
 
-1. **Decoupled Design**: The main DRIP_NCv0 code does not import QwenVL modules. If QwenVL dependencies are not installed, calling `prepare_prompt()` or `save_llm_result()` will raise an `ImportError`.
+1. **Chinese Prompts**: The prompt text remains in Chinese as it was used during model fine-tuning. Only code comments are in English.
 
-2. **Chinese Prompts**: The prompt text remains in Chinese as it was used during model fine-tuning. Only code comments are in English.
-
-3. **Optional Feature**: You can use the main DRIP_NCv0 inference pipeline without installing QwenVL dependencies.
-
-4. **GPU Required**: QwenVL inference requires CUDA-enabled GPU.
-
-### Troubleshooting
-
-#### ImportError: QwenVL dependencies are not installed
-
-**Solution**: Activate the qwenvl conda environment and install dependencies:
-```bash
-conda activate qwenvl
-pip install -r requirements_qwen.txt
-```
-
-#### CUDA out of memory
-
-**Solution**: Reduce batch size or use a smaller model variant.
-
-#### Model loading errors
-
-**Solution**: Verify the model paths are correct and all model files are present.
-
-### References
-
-- Qwen2.5-VL: https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct
-- LoRA: https://github.com/huggingface/peft
+2. **GPU Required**: QwenVL inference requires CUDA-enabled GPU.
 
 ## License & citation
 

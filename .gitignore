@@ -3,3 +3,7 @@
 /logs/
 
 /wandb/
+
+/base_model/Qwen2.5-VL-7B-Instruct
+
+/dataset/data_eval/*.jpeg

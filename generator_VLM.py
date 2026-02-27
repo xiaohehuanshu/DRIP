@@ -19,7 +19,6 @@ def load_model(base_model_path: str, lora_adapter_path: str, use_fp16: bool = Tr
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
         base_model_path,
         torch_dtype=torch.float16 if use_fp16 else "auto",
-        device_map="auto",
         low_cpu_mem_usage=True,
     ).to("cuda")
 
@@ -107,28 +106,32 @@ def main():
 
     output_file_path = "./logs/" + time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime(time.time()))
 
-    # # Single file inference
-    # path_in = "./dataset/data6000_graph/city/"  # Dataset path
-    # file = "city_large_A0.xlsx"
-    # infer(base_model_path, model, processor, path_in, file, output_file_path)
-
-    # Full dataset inference
-    path_in = "./dataset/CSV_improve/"  # Dataset path
-    all_files = []
-    # Traverse path_in directory and its subdirectories
-    for root, dirs, files in os.walk(path_in):
-        # Add relative path of files to all_files
-        for file in files:
-            if not file.endswith(".xlsx"):
-                continue
-            relative_path = os.path.relpath(os.path.join(root, file), path_in)
-            all_files.append(relative_path)
-    pbar = tqdm(total=len(all_files))
-    for file_idx, file in enumerate(all_files):
-        if file.endswith("xlsx"):
-            infer(base_model_path, model, processor, path_in, file, output_file_path)
-            pbar.update(1)
-    pbar.close()
+    # inference_mode: "full" for the full dataset, "single" for the single file
+    inference_mode = "full"
+    if inference_mode == "single":
+        # Single file inference
+        path_in = "./dataset/data_eval/"  # Dataset path
+        file = "0.xlsx"
+        infer(base_model_path, model, processor, path_in, file, output_file_path)
+    elif inference_mode == "full":
+        # Full dataset inference
+        path_in = "./dataset/data_eval/"  # Dataset path
+        all_files = []
+        # Traverse path_in directory and its subdirectories
+        for root, dirs, files in os.walk(path_in):
+            # Add relative path of files to all_files
+            for file in files:
+                if not file.endswith(".xlsx"):
+                    continue
+                relative_path = os.path.relpath(os.path.join(root, file), path_in)
+                all_files.append(relative_path)
+        pbar = tqdm(total=len(all_files))
+        for file_idx, file in enumerate(all_files):
+            if file.endswith("xlsx"):
+                infer(base_model_path, model, processor, path_in, file, output_file_path)
+                pbar.update(1)
+        pbar.close()
+        
     print("Inference completed. Results saved to:", output_file_path)
 
 

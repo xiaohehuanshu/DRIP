@@ -831,7 +831,7 @@ class LayoutGenerator(object):
                 df_env.rename(columns={col: self.text_trans[col]}, inplace=True)
 
         from layout_visualization import GraphOriginal
-        case = GraphOriginal(layout_info=df_env, file_name=file_name_without_extension, path_out=self.path_in, if_save=True)
+        case = GraphOriginal(layout_info=df_env, file_name=file_name_without_extension, path_out=self.path_in)
         case.draw_plan()
 
         image_path = os.path.join(self.path_in, f"{file_name_without_extension}.jpeg")
