@@ -24,6 +24,7 @@
 1. Create and activate a new Python environment using conda:
 ```sh
 conda create -n drl_env python=3.12
+conda activate drl_env
 ```
 2. Install pytorch. See https://pytorch.org/get-started/previous-versions/ for the correct command based on your system and CUDA version.
 Example for CUDA 12.4:
@@ -38,8 +39,10 @@ pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https
 ```sh
 pip install -r requirements.txt
 ```
-4. Install fonts for generate image:
+4. Switch to the repository root and install fonts for generate image:
 ```sh
+cd path/to/DRIP
+conda activate drl_env
 python utils/install_fonts.py
 ```
 
@@ -158,7 +161,7 @@ Download the Qwen2.5-VL-7B-Instruct model weights from Hugging Face:
 huggingface-cli download Qwen/Qwen2.5-VL-7B-Instruct --local-dir ./base_model/Qwen2.5-VL-7B-Instruct --local-dir-use-symlinks False --resume-download
 ```
 
-Alternatively, you can manually download the model from https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct and place it in `./base_model/Qwen2.5-VL-7B-Instruct/`.
+Alternatively, you can manually download the model from https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct or mirror website and place it in `./base_model/Qwen2.5-VL-7B-Instruct/`.
 
 #### Step 5: Prepare model files
 
