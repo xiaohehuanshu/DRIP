@@ -46,7 +46,9 @@ Note: torch-geometric installation may require additional platform-specific step
 All commands assume you are inside the repository root on a Windows/Linux machine and have a Python environment activated.
 
 1. Training
-- Edit configuration in `main.py` or pass your own config before running. Important: adjust `worker_num` in `main.py` to match your CPU/GPU parallel capabilities. Larger `worker_num` increases parallelism but also memory/CPU usage.
+- Edit configuration in `main.py` or pass your own config before running.
+
+  Important: adjust `worker_num` in `main.py` to match your CPU/GPU parallel capabilities. Larger `worker_num` increases parallelism but also memory/CPU usage.
 - Run training:
 ```sh
 python main.py
@@ -54,25 +56,34 @@ python main.py
 Training will create log folders under the configured `log_dir` and save model parameters under the configured parameter path (see `CONFIG` in `main.py`).
 
 2. Inference
-- By default `inference.py` uses a model path and base model path set near the bottom of the file. Update these variables to point to your trained model (`model_path`) and the `base_model` folder if needed.
+
+There are two ways to run inference:
+
+### Method 1: Using `main.py` (Recommended for faster inference)
+- Set `mode` to `"predict"` in the `CONFIG` dictionary in `main.py` (default is `"train"`)
+- Run inference:
+```sh
+python main.py
+```
+- Logs and results are written under the configured `log_dir` (default: `"./logs/<timestamp>/"`)
+
+- (Optional) Configure the following parameters in `CONFIG`:
+  - `dataset_path`: Path to your input dataset (default: `"./dataset/data_eval/"`)
+  - `para_path`: Path to your trained model parameters (default: `"net_param"`)
+  - `base_model_path`: Path to the base model folder (default: `"./base_model"`)
+  - `worker_num`: Number of parallel workers for faster inference (default: `8`)
+
+### Method 2: Using `inference.py` (Single-threaded)
+
 - Run inference:
 ```sh
 python inference.py
 ```
-- Logs and per-instance error logs are written under `./logs/<timestamp>/`.
+- Results are written under `./logs/<timestamp>/`
 
-Note: Inference engine is single-threaded, so it may take longer on large datasets. If you need faster inference, consider running `main.py` by commonting out the training line and uncommenting the prediction line.
+- (Optional) Update the `model_path` and `base_model_path` variables near the bottom of `inference.py`
 
-## Using custom datasets
-
-To evaluate the model on your own datasets:
-
-1. Create a new dataset file in the `dataset/` folder. The code expects either `.xlsx` or `.csv` files.
-2. If you have a precomputed graph file for a dataset, name it `<basename>_graph.xlsx` and place it in the same dataset folder.
-
-Example:
-- `dataset/my_test_floor.xlsx`
-- Optional graph file: `dataset/my_test_floor_graph.xlsx`
+Note: Method 1 (`main.py`) supports multi-threaded inference with configurable `worker_num`, which is significantly faster on large datasets. Method 2 (`inference.py`) is single-threaded and suitable for small datasets.
 
 ## Configuration tips
 
@@ -85,36 +96,20 @@ Example:
   - `model_path`: path to the saved model weights (change to your trained `.pth` file).
   - `base_model_path`: path to the `base_model` folder used by the environment.
 
-## Logging & outputs
-
-- Training and inference print progress information to the console and write detailed logs under the `logs/` directory.
-- Per-instance inference errors are saved to `logs/<timestamp>/error_log/<file>_output.log`.
-
-## Reproducibility
-
-- See `main.py` for a `set_seed()` helper used to fix random seeds (PyTorch, numpy, random).
-- For deterministic behavior on CUDA, you may need to set additional PyTorch backend flags (see PyTorch docs).
-
-## Troubleshooting
-
-- CUDA / GPU issues: ensure PyTorch and CUDA versions are compatible.
-- torch-geometric install errors: follow the platform-specific install instructions on the torch-geometric site.
-- If `inference.py` reports "no initial feasible solution" for a floor, check the dataset formatting and any required base model assets.
-
 ## QwenVL Baseline Inference (Optional)
 
 ### Overview
 
-The QwenVL baseline inference uses Qwen2.5-VL model with LoRA adapter for architectural layout generation. This is an **optional feature** that requires a separate conda environment. The main DRIP_NCv0 inference pipeline works independently without QwenVL dependencies.
+The QwenVL baseline inference uses QwenVL 7B model with LoRA adapter for architectural layout generation. This is an **optional feature** that requires a separate conda environment. The main DRIP inference pipeline works independently without QwenVL dependencies.
 
 ### Architecture
 
 The QwenVL baseline is designed to be completely decoupled from the main codebase:
 
 ```
-Main DRIP_NCv0 Environment          QwenVL Baseline Environment (Optional)
-├── Main inference pipeline          ├── generator_VLM.py
-├── env_fixed_state_length.py       ├── utils/make_dataset.py
+Main DRIP Environment              QwenVL Baseline Environment (Optional)
+├── Main inference pipeline        ├── generator_VLM.py
+├── env_fixed_state_length.py      ├── utils/make_dataset.py
 │   └── Core methods               └── Qwen2.5-VL model
 └── No QwenVL imports required
 ```

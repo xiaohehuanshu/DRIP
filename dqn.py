@@ -203,7 +203,7 @@ class DQN:
     def learn(self):
         init_time = time.time()
 
-        mode = self.config["train_mode"]
+        mode = self.config["mode"]
         total_epoch = self.config["total_epoch"]
         resume_epoch = self.config["resume_epoch"]
         training_range = range(total_epoch + 1)
@@ -505,37 +505,39 @@ def rollout_sub(file, path_in, log_dir, is_visible, rollout_queue, result_queue,
             return
 
     except Exception as e:
-        print(f"An error occurred in rollout_sub {file}")
+        # ignore error message
+        # print(f"An error occurred in rollout_sub {file}")
         try:
             worker.error_log(log_dir)
         except Exception as e:
-            print(f"Error in calling worker.error_log: {e}")
-        try:
-            print("room_name is", worker.room_names[worker.room_pointer])
-        except Exception as e:
-            print(f"Error in printing room_name: {e}")
-            print("floor_pointor is", worker.floor_pointor)
-            print("length of room_names is", len(worker.room_names))
-            print("room_pointer is", worker.room_pointer)
-        try:
-            print("Action is ", action)
-        except Exception as e:
-            print(f"Error in printing action: {e}")
-            print("Implying reset failure")
-            # no initial feasible solution, directly return
-            print(traceback.format_exc())
-            rollout_queue.put((unique_id, pid, None), timeout=10)
-            return 0, 0, None
-        try:
-            print("Mask is ", state['mask'])
-        except Exception as e:
-            print(f"Error in calculating or printing mask: {e}")
-        try:
-            print("value_out is ", value_out)
-        except Exception as e:
-            print(f"Error in printing value_out: {e}")
+            # print(f"Error in calling worker.error_log: {e}")
+            pass
+        # try:
+        #     print("room_name is", worker.room_names[worker.room_pointer])
+        # except Exception as e:
+        #     print(f"Error in printing room_name: {e}")
+        #     print("floor_pointor is", worker.floor_pointor)
+        #     print("length of room_names is", len(worker.room_names))
+        #     print("room_pointer is", worker.room_pointer)
+        # try:
+        #     print("Action is ", action)
+        # except Exception as e:
+        #     print(f"Error in printing action: {e}")
+        #     print("Implying reset failure")
+        #     # no initial feasible solution, directly return
+        #     print(traceback.format_exc())
+        #     rollout_queue.put((unique_id, pid, None), timeout=10)
+        #     return 0, 0, None
+        # try:
+        #     print("Mask is ", state['mask'])
+        # except Exception as e:
+        #     print(f"Error in calculating or printing mask: {e}")
+        # try:
+        #     print("value_out is ", value_out)
+        # except Exception as e:
+        #     print(f"Error in printing value_out: {e}")
 
-        print(traceback.format_exc())
+        # print(traceback.format_exc())
         rollout_queue.put((unique_id, pid, None), timeout=10)
         return 0, 0, None
 

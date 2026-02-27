@@ -14,7 +14,12 @@ CONFIG = {
     "dataset_path": "./dataset/data_eval/",
     "para_path": "net_param",
     
-    "train_mode": "train",
+    # Operating Mode: Optional Values
+    # "train" - Start training from scratch
+    # "retrain" - Load the best model and continue training
+    # "resume" - Resume training from the specified epoch
+    # "predict" - Only prediction, without training
+    "mode": "train",
     "total_epoch": 1000,
     "resume_epoch": 0,
 
@@ -60,7 +65,8 @@ def main():
 
     agent = DQN(config=CONFIG)
 
-    agent.learn()
+    if CONFIG["mode"] != "predict":
+        agent.learn()
 
     agent.predict()
 
