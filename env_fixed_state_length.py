@@ -25,6 +25,14 @@ from graph_maker import Transfer2GraphEdges
 from utils.graph_layout import GraphPlan
 from post_processer import PostProcess
 
+# Optional imports for QwenVL baseline inference
+try:
+    from PIL import Image
+    from utils.make_dataset import generate_prompt_from_file
+    QWENVL_UTILS_AVAILABLE = True
+except ImportError:
+    QWENVL_UTILS_AVAILABLE = False
+
 
 class LayoutGenerator(object):
     state_dim_val = 4 * 30
@@ -114,8 +122,7 @@ class LayoutGenerator(object):
         self.is_graph_reward = True
 
         if torch.cuda.is_available() and gpu_id is not None:
-            os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
-            self.device = torch.device("cuda")
+            self.device = torch.device(f"cuda:{gpu_id}")
         else:
             self.device = torch.device("cpu")
 
@@ -801,4 +808,106 @@ class LayoutGenerator(object):
         self.render()
         self.save_pic(save_path)
         self.save_file(save_path)
+
+    def prepare_prompt(self):
+        """
+        Generate environment image and prompt messages for QwenVL inference.
+        This method requires QwenVL utilities to be installed.
+        """
+        if not QWENVL_UTILS_AVAILABLE:
+            raise ImportError(
+                "QwenVL utilities are not installed. "
+                "Please install them using: pip install -r requirements_qwen.txt"
+            )
+
+        file_name_without_extension = os.path.splitext(self.file_name)[0]
+
+        # print(f"Generating env image from layout for {file_name_without_extension}...")
+        df_env = copy.deepcopy(self.df_env)
+        df_env.loc["x", :] -= self.delta_x
+        df_env.loc["y", :] -= self.delta_y
+        for col in df_env.columns:
+            if col in self.text_trans.keys():
+                df_env.rename(columns={col: self.text_trans[col]}, inplace=True)
+
+        from layout_visualization import GraphOriginal
+        case = GraphOriginal(layout_info=df_env, file_name=file_name_without_extension, path_out=self.path_in, if_save=True)
+        case.draw_plan()
+
+        image_path = os.path.join(self.path_in, f"{file_name_without_extension}.jpeg")
+        resized_image_path = image_path.replace(".jpeg", "_resized.jpeg")
+        image = Image.open(image_path).convert("RGB").resize((224, 224))
+        image.save(resized_image_path)
+        # print(f"Resized image saved to {resized_image_path}")
+
+        room_lis = []
+        for room in self.room_names:
+            room_lis.append(self.text_trans[room])
+
+        # print("Generating prompt...")
+        messages = generate_prompt_from_file(df_env, room_lis, file_name_without_extension, resized_image_path)
+        return messages
+
+    def save_llm_result(self, llm_result, save_path):
+        """
+        Save LLM inference results to Excel file.
+        This method requires QwenVL utilities to be installed.
+        """
+        if not QWENVL_UTILS_AVAILABLE:
+            raise ImportError(
+                "QwenVL utilities are not installed. "
+                "Please install them using: pip install -r requirements_qwen.txt"
+            )
+
+        try:
+            # Create save directory
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)
+
+            # Create reverse mapping from Chinese to English
+            reverse_trans = {v: k for k, v in self.text_trans.items()}
+
+            # Convert JSON string to dictionary
+            result_dict = json.loads(llm_result)
+
+            # Convert room names and create new dictionary
+            converted_dict = {}
+            for zh_name, coords in result_dict.items():
+                if zh_name in reverse_trans:
+                    eng_name = reverse_trans[zh_name]
+                    converted_dict[eng_name] = coords
+
+            # Create DataFrame
+            df_llm = pd.DataFrame(
+                {name: coords for name, coords in converted_dict.items()},
+                index=['x', 'y', 'w', 'd']
+            )
+
+            # Merge LLM results with environment data
+            df_env = copy.deepcopy(self.df_env)
+            df_env.loc["x", :] -= self.delta_x
+            df_env.loc["y", :] -= self.delta_y
+            df_combined = pd.concat([df_env, df_llm], axis=1)
+
+            # Build save path
+            file_name_without_extension = os.path.splitext(self.file_name)[0]
+            full_save_path = os.path.join(save_path, f"{file_name_without_extension}_llm.xlsx")
+
+            # Save as Excel file
+            with pd.ExcelWriter(full_save_path, engine="openpyxl") as writer:
+                # Save merged data to floor sheet
+                df_combined.to_excel(writer, sheet_name=f"floor{self.floor_pointor}", index=True)
+
+                # Save original LLM output to llm_output sheet
+                df_llm.to_excel(writer, sheet_name=f"floor{self.floor_pointor}_llm", index=True)
+
+            # print(f"LLM result saved to {full_save_path}")
+
+            df_shapes = layout2geopandas(layout_info=df_combined)
+            self.render_df(df_shapes)
+            self.save_pic(save_path)
+
+        except Exception as e:
+            print(f"Error in saving LLM result: {str(e)}")
+            print(traceback.format_exc())
 

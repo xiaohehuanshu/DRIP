@@ -1,0 +1,24 @@
+# Requirements for QwenVL baseline inference
+# This file is for creating a separate conda environment for QwenVL inference
+# Install with: pip install -r requirements_qwen.txt
+
+# Main dependencies (from requirements.txt)
+pandas==2.2.3
+geopandas==1.0.1
+shapely==2.1.0
+torch_geometric==2.6.1
+wcwidth
+openpyxl
+numpy
+scipy
+matplotlib
+tensorboard
+tensorboardX
+wandb
+
+# QwenVL-specific dependencies
+transformers
+peft
+qwen-vl-utils
+tqdm
+Pillow
