@@ -86,6 +86,21 @@ class SumTree:
     def total_priority(self):
         return self.tree[0]
 
+    def export_state(self):
+        return {
+            "tree": self.tree,
+            "data": self.data,
+            "write": self.write,
+            "size": self.size,
+        }
+
+    def load_state(self, state):
+        self.capacity = state["capacity"]
+        self.tree = state["tree"]
+        self.data = state["data"]
+        self.write = state["write"]
+        self.size = state["size"]
+
 
 class ReplayBuffer:
     def __init__(self, capacity, alpha, beta, beta_increment_per_sampling, n_step, gamma):
@@ -98,6 +113,30 @@ class ReplayBuffer:
         self.n_step = n_step  # Multi-Step Learning
         self.gamma = gamma
         self.n_step_buffer = []
+
+    def export_state(self):
+        return {
+            "capacity": self.capacity,
+            "alpha": self.alpha,
+            "beta": self.beta,
+            "increment": self.increment,
+            "n_step": self.n_step,
+            "gamma": self.gamma,
+            "n_step_buffer": self.n_step_buffer,
+            "sumtree": self.tree.export_state(),
+        }
+
+    def load_state(self, state):
+        self.capacity = state["capacity"]
+        self.alpha = state["alpha"]
+        self.beta = state["beta"]
+        self.increment = state["increment"]
+        self.n_step = state["n_step"]
+        self.gamma = state["gamma"]
+        self.n_step_buffer = state["n_step_buffer"]
+
+        self.tree = SumTree(self.capacity)
+        self.tree.load_state(state["sumtree"])
 
     def add(self, trans):
         self.n_step_buffer.append(trans)
@@ -166,7 +205,7 @@ class ReplayBuffer:
         priorities = (np.abs(td_errors) + 1e-5) ** self.alpha
         priorities = np.minimum(priorities, 10.0)
         for idx, priority in zip(idxs, priorities):
-            self.tree.update(idx, priority)
+            self.tree.update(idx, priority.item())
 
     def __len__(self):
         return self.tree.size

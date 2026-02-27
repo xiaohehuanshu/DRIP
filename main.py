@@ -16,6 +16,7 @@ CONFIG = {
     
     "train_mode": "train",
     "total_epoch": 1000,
+    "resume_epoch": 0,
 
     "worker_num": 8,
     "lr_max": 1e-3,

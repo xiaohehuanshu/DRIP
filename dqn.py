@@ -55,6 +55,7 @@ class DQN:
         # parallel processing setup
         mp.set_start_method("spawn")
         self.gpu_count = torch.cuda.device_count()
+        print("Available GPU count:", self.gpu_count)
         self.worker_num = config["worker_num"]
         self.pool = Pool(self.worker_num)
         self.manager = mp.Manager()
@@ -78,11 +79,36 @@ class DQN:
         os.makedirs(save_dir, exist_ok=True)
         torch.save(self.online_net.state_dict(), f"{save_dir}/net_epoch{epoch}.pth")
 
+        # Save training state
+        train_state = {
+            "target_net": self.target_net.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+            "epsilon": self.epsilon,
+            "training_step": self.training_step,
+            "replay_buffer": self.buffer.export_state(),
+        }
+        torch.save(train_state, f"{save_dir}/train_state_epoch{epoch}.pth")
+
     def load(self, epoch):
         path_para = self.load_path_para
         net_path = f"./param/{path_para}/net_epoch{epoch}.pth"
         self.online_net.load_state_dict(torch.load(net_path))
         self.update_target()
+
+    def resume(self, epoch):
+        path_para = self.load_path_para
+        state_path = f"./param/{path_para}/train_state_epoch{epoch}.pth"
+        train_state = torch.load(state_path, map_location="cpu", weights_only=False)
+
+        self.target_net.load_state_dict(train_state["target_net"])
+        self.optimizer.load_state_dict(train_state["optimizer"])
+
+        self.epsilon = train_state["epsilon"]
+        self.training_step = train_state["training_step"]
+
+        self.buffer.load_state(train_state["replay_buffer"])
+
+        print(f"[Checkpoint] Loaded from epoch {epoch}")
 
     def act(self, state, is_eval):
         graph_data = torch.tensor(state['control_edges'], dtype=torch.float).unsqueeze(0)
@@ -179,6 +205,8 @@ class DQN:
 
         mode = self.config["train_mode"]
         total_epoch = self.config["total_epoch"]
+        resume_epoch = self.config["resume_epoch"]
+        training_range = range(total_epoch + 1)
 
         best_reward = 0
         best_reward_list = []
@@ -206,11 +234,19 @@ class DQN:
             self.epsilon = self.epsilon_min
             self.load("_best_score")
             print("The pre-trained model was successfully loaded.")
+        elif mode == "resume":
+            warmup_flag = True
+            lr_max = self.config["lr_max"]
+            lr_min = self.config["lr_min"]
+            training_range = range(resume_epoch + 1, total_epoch + 1)
+            self.load(resume_epoch)
+            self.resume(resume_epoch)
+            print(f"The training resume form epoch{resume_epoch}, start from epoch{resume_epoch+1}.")
         else:
-            print("The mode is incorrect. The optional value is 'train' or 'retrain'.")
+            print("The mode is incorrect. The optional value is 'train', 'retrain', or 'resume'.")
             return -1
 
-        for i_epoch in range(total_epoch + 1):
+        for i_epoch in training_range:
             start_time = time.time()
             torch.cuda.empty_cache()
             reward_total, epoch_steps = self.rollout(is_eval=False, is_visible=False)
