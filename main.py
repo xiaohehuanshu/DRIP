@@ -11,7 +11,7 @@ warnings.simplefilter("error", RuntimeWarning)
 
 CONFIG = {
     "environment": "LayoutGenerator",
-    "dataset_path": "./dataset/data_eval/",
+    "dataset_path": "./dataset/data_paper/",
     "para_path": "net_param",
     
     # Operating Mode: Optional Values
