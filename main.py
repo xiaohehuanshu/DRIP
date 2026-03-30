@@ -24,8 +24,8 @@ CONFIG = {
     "resume_epoch": 0,
 
     "worker_num": 8,
-    "lr_max": 1e-3,
-    "lr_min": 1e-5,
+    "lr_max": 1e-4,
+    "lr_min": 5e-6,
     "lr_min_retrain": 5e-6,
 
     "gamma": 0.99,

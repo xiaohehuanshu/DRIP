@@ -61,7 +61,9 @@ def circulation_evaluator(gpd_rooms, gpd_all, df_weight_absolute, df_weight_rela
     rooms_name_all = ['living', 'dining', 'kitchen', 'hallway'] + rooms_private
 
     room_private_exist = [i for i in rooms_name_all if i in gpd_all.columns]
-    rooms_name = room_private_exist + ['entrance']
+    rooms_name = room_private_exist.copy()
+    if 'entrance' in gpd_all.columns:
+        rooms_name.append('entrance')
     rooms = [gpd_all.loc['poly', i] for i in rooms_name]
 
     # 定义所有空间
@@ -197,7 +199,10 @@ def select_proper_door_point(doors_dict, pub, points_out, gpd_all, rooms_private
             # print(doors_dict)
             # print(room)
             # print('---------------')
-            dic_sub = {key: doors_dict[key] for key in ['entrance', room]}
+            keys_to_get = ['entrance', room]
+            dic_sub = {key: doors_dict[key] for key in keys_to_get if key in doors_dict}
+            if 'entrance' not in dic_sub:
+                continue  # 跳过没有入口的房间处理
             combinations_doors_sub = custom_product_dict(dic_sub, prefix=None)
             if room in rooms_private:  # 私密性的房间离入口越远越好
                 record = 0

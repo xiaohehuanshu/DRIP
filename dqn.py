@@ -16,6 +16,7 @@ import multiprocessing.queues
 
 from tensorboardX import SummaryWriter
 import wandb
+from openpyxl import load_workbook
 
 from logging_tool import LazyTee
 from model import DQN_Agent_Transformer_GAT_PRE
@@ -74,6 +75,62 @@ class DQN:
             gamma=self.gamma,
         )
 
+        # 读取split_list.xlsx中的数据划分
+        self.split_rl_train_files = None
+        self.split_rl_eval_files = None
+        self.split_eval_files = None
+        self._load_split_list()
+    
+    def _load_split_list(self):
+        """
+        读取split_list.xlsx文件，获取RL训练集、RL验证集和测试集的文件列表
+        仅当dataset_path包含'dataset_full_clean'时才加载
+        """
+        dataset_path = self.config.get("dataset_path", "")
+        if "dataset_full_clean" not in dataset_path:
+            print("[SplitList] dataset_path不包含'dataset_full_clean'，不使用split_list.xlsx")
+            return
+        
+        # 尝试多个可能的split_list.xlsx路径
+        possible_paths = [
+            os.path.join(dataset_path, "split_list.xlsx"),
+            "./dataset/split_list.xlsx",
+        ]
+        
+        split_file_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                split_file_path = path
+                break
+        
+        if split_file_path is None:
+            print("[SplitList] 警告：未找到split_list.xlsx文件，将使用默认数据加载方式")
+            return
+        
+        try:
+            wb = load_workbook(split_file_path)
+            # 读取rl_train sheet
+            if 'rl_train' in wb.sheetnames:
+                ws_rl_train = wb['rl_train']
+                self.split_rl_train_files = [row[0] for row in ws_rl_train.iter_rows(values_only=True) if row[0]]
+                print(f"[SplitList] 从 {split_file_path} 加载RL训练集: {len(self.split_rl_train_files)} 个文件")
+            # 读取rl_eval sheet
+            if 'rl_eval' in wb.sheetnames:
+                ws_rl_eval = wb['rl_eval']
+                self.split_rl_eval_files = [row[0] for row in ws_rl_eval.iter_rows(values_only=True) if row[0]]
+                print(f"[SplitList] 从 {split_file_path} 加载RL验证集: {len(self.split_rl_eval_files)} 个文件")
+            # 读取eval sheet
+            if 'eval' in wb.sheetnames:
+                ws_eval = wb['eval']
+                self.split_eval_files = [row[0] for row in ws_eval.iter_rows(values_only=True) if row[0]]
+                print(f"[SplitList] 从 {split_file_path} 加载测试集: {len(self.split_eval_files)} 个文件")
+            wb.close()
+        except Exception as e:
+            print(f"[SplitList] 读取split_list.xlsx失败: {e}")
+            self.split_rl_train_files = None
+            self.split_rl_eval_files = None
+            self.split_eval_files = None
+
     def save(self, epoch):
         save_dir = f"./param/{self.save_path_para}"
         os.makedirs(save_dir, exist_ok=True)
@@ -94,7 +151,7 @@ class DQN:
         net_path = f"./param/{path_para}/net_epoch{epoch}.pth"
         self.online_net.load_state_dict(torch.load(net_path))
         self.update_target()
-
+    
     def resume(self, epoch):
         path_para = self.load_path_para
         state_path = f"./param/{path_para}/train_state_epoch{epoch}.pth"
@@ -245,7 +302,7 @@ class DQN:
         else:
             print("The mode is incorrect. The optional value is 'train', 'retrain', or 'resume'.")
             return -1
-
+        
         for i_epoch in training_range:
             start_time = time.time()
             torch.cuda.empty_cache()
@@ -279,8 +336,8 @@ class DQN:
             )
 
             # save model parameters and evaluate every 20 epochs
-            if (i_epoch % 20 == 0) and (i_epoch != 0):
-            # if i_epoch % 20 == 0:
+            # if (i_epoch % 20 == 0) and (i_epoch != 0):
+            if i_epoch % 20 == 0:
                 self.save(epoch=i_epoch)
                 print(f"    Model parameters saved.")
                 start_time = time.time()
@@ -342,22 +399,42 @@ class DQN:
             path_in = self.config["dataset_path"]
             log_dir = self.config["log_dir"]
             base_model_path = self.config["base_model_path"]
-            all_files = []
-            # traverse the dataset directory to get all files
-            for root, dirs, files in os.walk(path_in):
-                for file in files:
-                    relative_path = os.path.relpath(os.path.join(root, file), path_in)
-                    all_files.append(relative_path)
+            
+            # evaluate if split_list is used
+            use_split_list = (self.split_rl_train_files is not None and
+                              self.split_rl_eval_files is not None and
+                              self.split_eval_files is not None)
+            
+            if use_split_list:
+                # use split_list
+                if is_visible:
+                    # use eval dataset
+                    sampled_files = self.split_eval_files.copy()
+                elif is_eval:
+                    # use rl_eval dataset
+                    sampled_files = self.split_rl_eval_files.copy()
+                else:
+                    # use rl_train dataset
+                    sampled_files = self.split_rl_train_files.copy()
+            else:
+                # no split_list
+                all_files = []
+                # traverse the dataset directory to get all files
+                for root, dirs, files in os.walk(path_in):
+                    for file in files:
+                        relative_path = os.path.relpath(os.path.join(root, file), path_in)
+                        all_files.append(relative_path)
+                sampled_files = all_files
 
             # sample files according to different modes
             if is_visible:
-                sampled_files = all_files
+                sampled_files = sampled_files
                 pbar = tqdm(total=len(sampled_files), file=sys.__stdout__)
             elif is_eval:
-                sampled_files = random.sample(all_files, min(1500, len(all_files)))
+                sampled_files = random.sample(sampled_files, min(1500, len(sampled_files)))
                 pbar = tqdm(total=len(sampled_files), file=sys.__stdout__)
             else:
-                sampled_files = random.sample(all_files, min(500, len(all_files)))
+                sampled_files = random.sample(sampled_files, min(500, len(sampled_files)))
             random.shuffle(sampled_files)
 
             results = []

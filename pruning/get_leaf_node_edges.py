@@ -52,6 +52,7 @@ class get_available_layout:
             self.layout_info = pd.concat([self.env_info, self.room_info], axis=1)
         else:
             self.layout_info = self.env_info
+
         self.poly_layout = layout2geopandas(layout_info=self.layout_info)
 
         # 得到用来适配graph剪枝的poly_layout信息，包含了四个boundary
@@ -295,6 +296,8 @@ class get_available_layout:
         for poly in iteration:
             coord = geometry.MultiPoint(poly.exterior.coords[:])
             points = coord.intersection(multi_points)
+            if points.is_empty:
+                continue
             if points.geom_type == "MultiPoint":
                 iter_point = points.geoms
             else:
@@ -815,6 +818,8 @@ class get_available_layout:
                 for i in se_adjacent_names:
                     # print(i)
                     poly_room = self.poly_layout_boundary_plus.loc['rec', i]
+                    if room.exterior.coords[:][0] == (4200, 2700):
+                        self.poly_visualization(polys=self.poly_layout_boundary_plus.loc['rec', :].values.tolist() + [room])
                     if not room.intersects(poly_room):
                         return True
 
@@ -835,6 +840,7 @@ class get_available_layout:
             room_area_in_boundary = self.poly_blank_env_without_white_m.intersection(room).area
         else:
             room_area_in_boundary = room.area + 10000000000  # self.names_entrance中的对象不剪枝
+
         if room_area_in_boundary < (room.area - 1):
             return True
 
@@ -862,7 +868,6 @@ class get_available_layout:
             names_as_entrance = ["entrance", 'entrance_sub']
         else:  # 说明是二层及以上
             names_as_entrance = ["entrance", 'entrance_sub', 'staircase']
-
         if self.new_room not in ["living", "dining", "hallway"]:
             for en in names_as_entrance:
                 if en in self.poly_layout.columns:
@@ -1087,46 +1092,27 @@ if __name__ == "__main__":
     from graph_maker import Transfer2Graph
 
     # path = "data_test/"
-    path = "C:/Users/SHU/Desktop/2025_06_13_22_02_11/error_log/rural/"
-    file_name = "rural_floor2_B-L-25.xlsx"
+    path = "D:/ONGOING/RL_house/dataset/data6000_graph/city/"
+    file_name = "city_large_江苏_淮安文华园_1梯3户_33层-394.62平-279-1-1.xlsx"
 
     excel_file = pd.ExcelFile(path + file_name)
     sheet_names = excel_file.sheet_names
 
-    df = pd.read_excel(path + file_name, index_col=0, sheet_name='floor2')
-    df_down = pd.read_excel(path + file_name, index_col=0, sheet_name='floor1')
+    df = pd.read_excel(path + file_name, index_col=0, sheet_name='floor1')
+    graph = pd.read_excel(path + file_name, index_col=0, sheet_name='floor1_graph')
+    df_down = None
+    # if len(sheet_names) >= 2:
+    #     df_down = pd.read_excel(path + file_name, index_col=0, sheet_name='floor1')
 
     env_names = [
-        'boundary',
-        'entrance',
-        'entrance_sub',
-        'white_south',
-        'white_north',
-        'white_west',
-        'white_east',
-        'black1',
-        'black2',
-        'black3',
-        'black4',
-        'staircase',
+        'boundary', 'entrance', 'entrance_sub', 'white_south', 'white_north', 'white_west', 'white_east',
+        'black1', 'black2', 'black3', 'black4', 'staircase',
     ]
 
     room_names = [
-        'white_m1',
-        'white_m2',
-        'white_m3',
-        'white_m4',
-        'living',
-        # 'room1',
-        'room2',
-        'room3',
-        'room4',
-        'kitchen',
-        'storeroom',
-        'bath1',
-        'bath2',
-        'bath1_sub',
-        'dining',
+        'white_m1', 'white_m2', 'white_m3', 'white_m4',
+        # 'living', 'room1', 'room3', 'room4', 'kitchen', 'staircase', 'storeroom',
+        # 'bath1', 'bath2', 'bath1_sub', 'dining', 'storeroom'
     ]
 
     env_name_exist = [i for i in df.columns if i in env_names]
@@ -1136,15 +1122,20 @@ if __name__ == "__main__":
     room_info = df[room_name_exist].copy()
     room_name = "room1"
 
+    # case_graph = Transfer2Graph(layout_ori=df)
+    # graph = case_graph.trans_input_matrix()
+    # print(graph)
+
     node = get_available_layout(
         new_room_name=f"{room_name}",
         env_info=env_info,
         room_info=room_info,
         layout_down=df_down,
-        control=None
+        control=graph
     )
 
     leaf_node, deployed_points = node.get_available_layout()
+
     points_lis = deployed_points.loc["point", :].values
     counter = 0
     for m in leaf_node:
@@ -1153,11 +1144,9 @@ if __name__ == "__main__":
     for i in range(len(leaf_node)):
         x, y, w, d = leaf_node[i]
         room_tmp = np.array([x, y, w, d])
-        room_info_tmp = pd.DataFrame(
-            room_tmp.T,
-            columns=[f"{room_name}"],
-            index=["x", "y", "w", "d"]
-        )
+        room_info_tmp = pd.DataFrame(room_tmp.T,
+                                     columns=[f"{room_name}"],
+                                     index=["x", "y", "w", "d"])
         counter += len(room_info_tmp.columns)
         room_info_total = pd.concat([env_info, room_info, room_info_tmp], axis=1)
         case = GraphOriginal(layout_info=room_info_total, points=points_lis, file_name="lala.jpeg", path_out="")

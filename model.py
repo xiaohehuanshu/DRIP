@@ -4,6 +4,18 @@ import torch.nn.functional as F
 from torch_geometric.nn import GATConv
 from torch_geometric.data import Data, Batch
 
+def resnet_encoder(in_channels=28, base_channels=4):
+    return ResNetEncoder(BasicBlock, BasicBlockVerse, in_channels=in_channels, base_channels=base_channels)
+
+
+def resnet_decoder_a(in_channels=4, mid_channels=2):
+    return ResNetDecoderA(BasicBlock, in_channels=in_channels, mid_channels=mid_channels)
+
+
+def resnet_decoder_b(in_channels=5, mid_channels=2):
+    return ResNetDecoderB(BasicBlock, in_channels=in_channels, mid_channels=mid_channels)
+
+
 class BasicBlock(nn.Module):
     def __init__(self, in_channels, mid_channels, stride=1):
         self.bias_opening = False
@@ -93,21 +105,22 @@ class BasicBlockVerse(nn.Module):
 
 
 class ResNetEncoder(nn.Module):
-    def __init__(self, block, block_verse, in_channels=None):
+    def __init__(self, block, block_verse, in_channels=None, base_channels=4):
         super(ResNetEncoder, self).__init__()
         self.in_channels = in_channels
+        self.base_channels = base_channels
         self.bn1 = nn.BatchNorm2d(self.in_channels)
 
         self.conv1 = nn.Conv2d(self.in_channels, self.in_channels, kernel_size=3, stride=1, padding=1, bias=False)
-        self.layer1 = block(in_channels=self.in_channels, mid_channels=4, stride=1)
-        self.layer2 = block(in_channels=4, mid_channels=8, stride=2)
-        self.layer3 = block(in_channels=8, mid_channels=16, stride=2)
-        self.layer4 = block(in_channels=16, mid_channels=32, stride=2)
-        self.layer1_ = block_verse(in_channels=32, mid_channels=16, stride=2)
-        self.layer2_ = block_verse(in_channels=16, mid_channels=8, stride=2)
-        self.layer3_ = block_verse(in_channels=8, mid_channels=4, stride=2)
+        self.layer1 = block(in_channels=self.in_channels, mid_channels=base_channels, stride=1)
+        self.layer2 = block(in_channels=base_channels, mid_channels=base_channels*2, stride=2)
+        self.layer3 = block(in_channels=base_channels*2, mid_channels=base_channels*4, stride=2)
+        self.layer4 = block(in_channels=base_channels*4, mid_channels=base_channels*8, stride=2)
+        self.layer1_ = block_verse(in_channels=base_channels*8, mid_channels=base_channels*4, stride=2)
+        self.layer2_ = block_verse(in_channels=base_channels*4, mid_channels=base_channels*2, stride=2)
+        self.layer3_ = block_verse(in_channels=base_channels*2, mid_channels=base_channels, stride=2)
 
-        self.conv2 = nn.Conv2d(in_channels=4, out_channels=4, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(in_channels=base_channels, out_channels=base_channels, kernel_size=3, stride=1, padding=1, bias=False)
 
     def forward(self, x):
         out = F.relu(self.bn1(self.conv1(x)))
@@ -123,15 +136,16 @@ class ResNetEncoder(nn.Module):
 
 
 class ResNetDecoderA(nn.Module):
-    def __init__(self, block, in_channels=None):
+    def __init__(self, block, in_channels=None, mid_channels=2):
         super(ResNetDecoderA, self).__init__()
         self.in_channels = in_channels
+        self.mid_channels = mid_channels
         self.bn1 = nn.BatchNorm2d(self.in_channels)
         self.sigmoid = nn.Sigmoid()
 
-        self.layer1 = block(in_channels=self.in_channels, mid_channels=2, stride=1)
-        self.layer2 = block(in_channels=2, mid_channels=1, stride=1)
-        self.conv2 = nn.Conv2d(in_channels=1, out_channels=1, kernel_size=3, stride=1, padding=1, bias=False)
+        self.layer1 = block(in_channels=self.in_channels, mid_channels=mid_channels, stride=1)
+        self.layer2 = block(in_channels=mid_channels, mid_channels=max(mid_channels//2, 1), stride=1)
+        self.conv2 = nn.Conv2d(in_channels=max(mid_channels//2, 1), out_channels=1, kernel_size=3, stride=1, padding=1, bias=False)
 
     def forward(self, x):
         out = self.layer1(x)
@@ -141,33 +155,22 @@ class ResNetDecoderA(nn.Module):
 
 
 class ResNetDecoderB(nn.Module):
-    def __init__(self, block, in_channels=None):
+    def __init__(self, block, in_channels=None, mid_channels=2):
         super(ResNetDecoderB, self).__init__()
         self.in_channels = in_channels
+        self.mid_channels = mid_channels
         self.bn1 = nn.BatchNorm2d(self.in_channels)
         self.sigmoid = nn.Sigmoid()
 
-        self.layer1 = block(in_channels=self.in_channels, mid_channels=2, stride=1)
-        self.layer2 = block(in_channels=2, mid_channels=1, stride=1)
-        self.conv2 = nn.Conv2d(in_channels=1, out_channels=1, kernel_size=3, stride=1, padding=1, bias=False)
+        self.layer1 = block(in_channels=self.in_channels, mid_channels=mid_channels, stride=1)
+        self.layer2 = block(in_channels=mid_channels, mid_channels=max(mid_channels//2, 1), stride=1)
+        self.conv2 = nn.Conv2d(in_channels=max(mid_channels//2, 1), out_channels=1, kernel_size=3, stride=1, padding=1, bias=False)
 
     def forward(self, x):
         out = self.layer1(x)
         out = self.layer2(out)
         out = self.conv2(out)
         return out
-
-
-def resnet_encoder(in_channels=28):
-    return ResNetEncoder(BasicBlock, BasicBlockVerse, in_channels=in_channels)
-
-
-def resnet_decoder_a(in_channels=4):
-    return ResNetDecoderA(BasicBlock, in_channels=in_channels)
-
-
-def resnet_decoder_b(in_channels=5):
-    return ResNetDecoderB(BasicBlock, in_channels=in_channels)
 
 
 class GAT(torch.nn.Module):
@@ -196,7 +199,7 @@ class GAT(torch.nn.Module):
         x = F.relu(self.linear1(x_flattened))
         x = F.relu(self.linear2(x))
         x = self.linear3(x)
-        x = torch.sigmoid(x)
+        x = F.sigmoid(x)
         return x
 
 class DQN_Agent_Transformer_GAT_PRE(nn.Module):

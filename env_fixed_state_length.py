@@ -129,18 +129,20 @@ class LayoutGenerator(object):
         self._load_base_models(base_model_path)
 
     def _load_base_models(self, base_model_path):
+        base_channels = 8
+        decoder_mid_channels = 4
         try:
-            self.net_encoder = resnet_encoder().to(self.device)
+            self.net_encoder = resnet_encoder(in_channels=28, base_channels=base_channels).to(self.device)
             path_encoder = os.path.join(base_model_path, "model_encoder.pth")
             self.net_encoder.load_state_dict(torch.load(path_encoder, map_location=self.device))
             self.net_encoder.eval()
 
-            self.net_decoder_a = resnet_decoder_a().to(self.device)
+            self.net_decoder_a = resnet_decoder_a(in_channels=base_channels, mid_channels=decoder_mid_channels).to(self.device)
             path_decoder_a = os.path.join(base_model_path, "model_decoder_a.pth")
             self.net_decoder_a.load_state_dict(torch.load(path_decoder_a, map_location=self.device))
             self.net_decoder_a.eval()
 
-            self.net_decoder_b = resnet_decoder_b().to(self.device)
+            self.net_decoder_b = resnet_decoder_b(in_channels=base_channels+1, mid_channels=decoder_mid_channels).to(self.device)
             path_decoder_b = os.path.join(base_model_path, "model_decoder_b.pth")
             self.net_decoder_b.load_state_dict(torch.load(path_decoder_b, map_location=self.device))
             self.net_decoder_b.eval()
@@ -745,70 +747,6 @@ class LayoutGenerator(object):
         plt.draw()
         plt.pause(0.001)
 
-    def save_file(self, save_path):
-        try:
-            if not os.path.exists(save_path):
-                os.makedirs(save_path)
-            file_name_without_extension = os.path.splitext(self.file_name)[0]
-            full_save_path = os.path.join(save_path, file_name_without_extension + ".xlsx")
-            os.makedirs(os.path.dirname(full_save_path), exist_ok=True)
-
-            with pd.ExcelWriter(full_save_path, engine="openpyxl") as writer:
-                self.df_layout_origin = self.df_layout_pure
-                self.df_layout_origin.to_excel(writer, sheet_name=f"floor{self.floor_pointor}", index=True)
-                self.graph_controls.to_excel(writer, sheet_name=f"floor{self.floor_pointor}_graph", index=True)
-                if self.layout_down is not None:
-                    layout_down = copy.deepcopy(self.layout_down)
-                    layout_down.loc['x', :] - self.delta_x
-                    layout_down.loc['y', :] - self.delta_y
-                    layout_down.to_excel(writer, sheet_name=f"floor{self.floor_pointor-1}", index=True)
-                
-                for room_name, (action_list, value_out) in self.action_available_all.items():
-                    action_data = []
-                    for i, action_available in enumerate(action_list):
-                        _, _, row_id1, col_id1, row_id2, col_id2 = action_available
-                        coord_x_p1, coord_y_p1 = self.matrix2vector_point(row_id=row_id1, col_id=col_id1)
-                        coord_x_p2, coord_y_p2 = self.matrix2vector_point(row_id=row_id2, col_id=col_id2)
-                        vector = self.transform_room_info(x1=coord_x_p1, y1=coord_y_p1, x2=coord_x_p2, y2=coord_y_p2)
-                        x, y, w, d = np.array(vector) - np.array([self.delta_x, self.delta_y, 0, 0])
-                        score = value_out[i]
-                        action_data.append([x, y, w, d, score])
-
-                    action_df = pd.DataFrame(action_data, columns=["x", "y", "w", "d", "score"]).T
-                    action_df.to_excel(writer, sheet_name=f"floor{self.floor_pointor}_{room_name}", index=True)
-
-        except Exception as e:
-            print("save_file:" + str(e))
-            print(traceback.format_exc())
-
-    def save_pic(self, save_path):
-        try:
-            if not os.path.exists(save_path):
-                os.makedirs(save_path)
-
-            file_name_without_extension = os.path.splitext(self.file_name)[0]
-            full_save_path = os.path.join(save_path, file_name_without_extension + f"_floor{self.floor_pointor}" + ".jpg")
-            os.makedirs(os.path.dirname(full_save_path), exist_ok=True)
-
-            plt.savefig(full_save_path, dpi=300)
-            plt.close(self.fig)
-        except Exception as e:
-            print("save_pic:" + str(e))
-            print(traceback.format_exc())
-
-    def close(self, log_dir, is_visible):
-        save_path = log_dir + "/results/"
-        if is_visible:
-            self.render()
-            self.save_pic(save_path)
-            self.save_file(save_path)
-
-    def error_log(self, log_dir):
-        save_path = log_dir + "/error_log/"
-        self.render()
-        self.save_pic(save_path)
-        self.save_file(save_path)
-
     def prepare_prompt(self):
         """
         Generate environment image and prompt messages for QwenVL inference.
@@ -910,4 +848,68 @@ class LayoutGenerator(object):
         except Exception as e:
             print(f"Error in saving LLM result: {str(e)}")
             print(traceback.format_exc())
+
+    def save_file(self, save_path):
+        try:
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)
+            file_name_without_extension = os.path.splitext(self.file_name)[0]
+            full_save_path = os.path.join(save_path, file_name_without_extension + ".xlsx")
+            os.makedirs(os.path.dirname(full_save_path), exist_ok=True)
+
+            with pd.ExcelWriter(full_save_path, engine="openpyxl") as writer:
+                self.df_layout_origin = self.df_layout_pure
+                self.df_layout_origin.to_excel(writer, sheet_name=f"floor{self.floor_pointor}", index=True)
+                self.graph_controls.to_excel(writer, sheet_name=f"floor{self.floor_pointor}_graph", index=True)
+                if self.layout_down is not None:
+                    layout_down = copy.deepcopy(self.layout_down)
+                    layout_down.loc['x', :] - self.delta_x
+                    layout_down.loc['y', :] - self.delta_y
+                    layout_down.to_excel(writer, sheet_name=f"floor{self.floor_pointor-1}", index=True)
+                
+                for room_name, (action_list, value_out) in self.action_available_all.items():
+                    action_data = []
+                    for i, action_available in enumerate(action_list):
+                        _, _, row_id1, col_id1, row_id2, col_id2 = action_available
+                        coord_x_p1, coord_y_p1 = self.matrix2vector_point(row_id=row_id1, col_id=col_id1)
+                        coord_x_p2, coord_y_p2 = self.matrix2vector_point(row_id=row_id2, col_id=col_id2)
+                        vector = self.transform_room_info(x1=coord_x_p1, y1=coord_y_p1, x2=coord_x_p2, y2=coord_y_p2)
+                        x, y, w, d = np.array(vector) - np.array([self.delta_x, self.delta_y, 0, 0])
+                        score = value_out[i]
+                        action_data.append([x, y, w, d, score])
+
+                    action_df = pd.DataFrame(action_data, columns=["x", "y", "w", "d", "score"]).T
+                    action_df.to_excel(writer, sheet_name=f"floor{self.floor_pointor}_{room_name}", index=True)
+
+        except Exception as e:
+            print("save_file:" + str(e))
+            print(traceback.format_exc())
+
+    def save_pic(self, save_path):
+        try:
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)
+
+            file_name_without_extension = os.path.splitext(self.file_name)[0]
+            full_save_path = os.path.join(save_path, file_name_without_extension + f"_floor{self.floor_pointor}" + ".jpg")
+            os.makedirs(os.path.dirname(full_save_path), exist_ok=True)
+
+            plt.savefig(full_save_path, dpi=300)
+            plt.close(self.fig)
+        except Exception as e:
+            print("save_pic:" + str(e))
+            print(traceback.format_exc())
+
+    def close(self, log_dir, is_visible):
+        save_path = log_dir + "/results/"
+        if is_visible:
+            self.render()
+            self.save_pic(save_path)
+            self.save_file(save_path)
+
+    def error_log(self, log_dir):
+        save_path = log_dir + "/error_log/"
+        self.render()
+        self.save_pic(save_path)
+        self.save_file(save_path)
 

@@ -37,9 +37,8 @@ def normalization_living_dining_shape(func):
 class PathShapeScore:
     def __init__(self, df_shape):
         self.df_shape = df_shape
-        self.rooms_pub = [
-            'living', 'dining', 'hallway'
-        ]
+        self.rooms_pub = ['living', 'dining', 'hallway']
+        self.room_pub_path = ['living', 'hallway']  # 把living和hallway视为过道，但是dining不行
 
         self.entrances = [i for i in self.df_shape.columns if i in ['entrance', 'entrance_sub']]
 
@@ -52,6 +51,19 @@ class PathShapeScore:
         self.boundary = self.df_shape.loc['rec', 'boundary']
         self.public = None  # 包含所有公共空间的过道
         self.passway = None  # 纯过道
+
+        self.room_entity = [
+            "room1",
+            "room2",
+            "room3",
+            "room4",
+            "study_room",
+            "kitchen",
+            "bath1",
+            "bath2",
+            "bath1_sub",
+            "storeroom",
+        ]
 
     @normalization_path_shape
     def path_shape_total_score(self):
@@ -164,18 +176,32 @@ class PathShapeScore:
         # 房间可达性评价
         distance_all = 0
         for r in self.rooms_valid:
-            if not r.endswith('sub'):
+            if not r.endswith('sub') and (r in self.room_entity):
                 room = self.room_inner_storage.loc['poly', r]
+                if room.geom_type != 'Polygon':
+                    continue  # 跳过 MultiPolygon
                 if (room.area > 0) and (path_all.area > 0):
                     dis = room.distance(path_all)
-                    distance_all += dis
+                    if dis == 0:  # 排除掉虽然相交，但可通过尺寸不够的情况
+                        length_intersection_door = path_all.intersection(room.exterior).length
+                        # print(length_intersection_door)
+                        if length_intersection_door < 900:  # 如果有相交长度
+                            dis_sub = 900 - length_intersection_door
+                        else:
+                            dis_sub = 0
+                    else:
+                        dis_sub = dis + 900
+                    distance_all += dis_sub
         score_room_accessibility = (300 / (300 + distance_all))
 
         # 公共区域是否联通（连续变量）
-        # iteration_path_pure_add = iteration_path_pure.copy()  # 纯粹过道
-        iteration_path_pure_add = iteration_path_all.copy()  # 包含公共区域的过道
+        iteration_path_pure_add = iteration_path_pure.copy()  # 纯粹过道
+        # iteration_path_pure_add = iteration_path_all.copy()  # 包含所有公共区域的过道
         for p in self.entrances:
             iteration_path_pure_add.append(self.df_shape.loc['rec', p])  # 包含所有入口的过道
+        for q in self.room_pub_path:
+            if q in self.df_shape.columns:
+                iteration_path_pure_add.append(self.df_shape.loc['rec', q])  # 把living和hallway视为过道，但是dining不行
 
         path_pure_entrance = ops.unary_union(iteration_path_pure_add)
         if path_pure_entrance.geom_type == 'Polygon':
@@ -192,10 +218,12 @@ class PathShapeScore:
                         dis = path_block.distance(path_block_)  # 求两个过道体块距离
                         if dis == 0:  # 排除掉虽然相交，但可通过尺寸不够的情况
                             length_intersection = path_block.exterior.intersection(path_block_.exterior).length
-                            if length_intersection < 600:  # 如果有相交长度
+                            if length_intersection < 600:  # 如果有相交长度，且小于600
                                 distance_sub.append(600 - length_intersection)
+                            else:
+                                distance_sub.append(0)
                         else:
-                            distance_sub.append(dis)
+                            distance_sub.append(dis + 600)  # 包含共线长度600
                 if len(distance_sub) > 0:
                     distance_sub_min = min(distance_sub)
                     distance_sum += distance_sub_min
@@ -452,15 +480,14 @@ if __name__ == '__main__':
 
     # path = '../cases_for_test_large/2_improved/'
     # path = 'D:\\ONGOING\\RL_house\\Supervised_cnn_city_rural_house\\data_test\\'
-    path = 'C:/Users/SHU/Desktop/2025_05_20_11_51_38/results/city/'
+    path = 'C:/Users/SHU/Desktop/'
 
     for root, dirs, files in os.walk(path):
         for file in files:
-            if file == 'city_large_上海_万科_上海万科新城_1梯2户_6层-230.89平-237-1-1.xlsx':
+            if file == 'city_large_A2-1-无-2 (2) - 副本.xlsx':
             # if file.endswith('xlsx') and file != 'rural_floor2_E-I-95.xlsx':
 
                 df = pd.read_excel(path + file, index_col=0, sheet_name='floor1')
-
                 geo_layout = layout2geopandas(layout_info=df)
                 case = PathShapeScore(df_shape=geo_layout)
                 out = case.path_shape_total_score()

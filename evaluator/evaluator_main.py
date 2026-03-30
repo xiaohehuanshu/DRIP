@@ -76,9 +76,7 @@ def layout_evaluator(df_info, room_names_all, mode, graph=None):
     score_overlap = intersection_area(df_shape=df_shapes)
 
     # calculate the graph similarity between the inquire and output results
-    score_adjacent = graph_similarity_calculator(
-        df_adj_target=graph, layout_info=df_info, weights=graph_weights
-    )
+    score_adjacent = graph_similarity_calculator(df_adj_target=graph, layout_info=df_info)
 
     # calculate the rule-based final score
     score_dic = {
@@ -86,11 +84,11 @@ def layout_evaluator(df_info, room_names_all, mode, graph=None):
         "lighting": score_light * 1.1,
         "circulation": score_circulation * 1,
         "shape_room": score_shape * 0.9,
-        "path_others": score_path_other * 0.5,
-        "path_access": score_path_access * 0.5,
+        "path_access": score_path_access * 0.8,
+        "path_others": score_path_other * 0.8,
         "relation_liv_din": score_living_dining * 0.1,
         "overlap": score_overlap * 0.1,
-        'room_adjacent': score_adjacent * 1.2
+        'room_adjacent': score_adjacent * 1
     }
 
     score_final = sum(score_dic.values())
@@ -102,11 +100,11 @@ def layout_evaluator(df_info, room_names_all, mode, graph=None):
 
 
 def del_multipolygon(df_poly):
-    # 排除掉multipolygon的情况
+    # 排除掉multipolygon的情况，但保护 entrance
     recorder = []
     for c in df_poly.columns:
         poly = df_poly.loc["poly", c]
-        if poly.geom_type == "MultiPolygon":
+        if poly.geom_type == "MultiPolygon" and c != 'entrance':  # 保护 entrance
             df_poly = df_poly.drop(c, axis=1)
             recorder.append(c)
     return df_poly, recorder
