@@ -19,7 +19,7 @@ CONFIG = {
     # "retrain" - Load the best model and continue training
     # "resume" - Resume training from the specified epoch
     # "predict" - Only prediction, without training
-    "mode": "train",
+    "mode": "predict",
     "total_epoch": 1000,
     "resume_epoch": 0,
 

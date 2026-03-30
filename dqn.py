@@ -82,16 +82,10 @@ class DQN:
         self._load_split_list()
     
     def _load_split_list(self):
-        """
-        读取split_list.xlsx文件，获取RL训练集、RL验证集和测试集的文件列表
-        仅当dataset_path包含'dataset_full_clean'时才加载
-        """
         dataset_path = self.config.get("dataset_path", "")
         if "dataset_full_clean" not in dataset_path:
-            print("[SplitList] dataset_path不包含'dataset_full_clean'，不使用split_list.xlsx")
             return
         
-        # 尝试多个可能的split_list.xlsx路径
         possible_paths = [
             os.path.join(dataset_path, "split_list.xlsx"),
             "./dataset/split_list.xlsx",
@@ -104,29 +98,29 @@ class DQN:
                 break
         
         if split_file_path is None:
-            print("[SplitList] 警告：未找到split_list.xlsx文件，将使用默认数据加载方式")
+            print("[SplitList] warning: split_list.xlsx is not found")
             return
         
         try:
             wb = load_workbook(split_file_path)
-            # 读取rl_train sheet
+            # read rl_train sheet
             if 'rl_train' in wb.sheetnames:
                 ws_rl_train = wb['rl_train']
                 self.split_rl_train_files = [row[0] for row in ws_rl_train.iter_rows(values_only=True) if row[0]]
-                print(f"[SplitList] 从 {split_file_path} 加载RL训练集: {len(self.split_rl_train_files)} 个文件")
-            # 读取rl_eval sheet
+                print(f"[SplitList] From {split_file_path} load RL training data: {len(self.split_rl_train_files)} 个文件")
+            # read rl_eval sheet
             if 'rl_eval' in wb.sheetnames:
                 ws_rl_eval = wb['rl_eval']
                 self.split_rl_eval_files = [row[0] for row in ws_rl_eval.iter_rows(values_only=True) if row[0]]
-                print(f"[SplitList] 从 {split_file_path} 加载RL验证集: {len(self.split_rl_eval_files)} 个文件")
-            # 读取eval sheet
+                print(f"[SplitList] From {split_file_path} load RL eval data: {len(self.split_rl_eval_files)} 个文件")
+            # read eval sheet
             if 'eval' in wb.sheetnames:
                 ws_eval = wb['eval']
                 self.split_eval_files = [row[0] for row in ws_eval.iter_rows(values_only=True) if row[0]]
-                print(f"[SplitList] 从 {split_file_path} 加载测试集: {len(self.split_eval_files)} 个文件")
+                print(f"[SplitList] From {split_file_path} load test data: {len(self.split_eval_files)} 个文件")
             wb.close()
         except Exception as e:
-            print(f"[SplitList] 读取split_list.xlsx失败: {e}")
+            print(f"[SplitList] Read split_list.xlsx failed: {e}")
             self.split_rl_train_files = None
             self.split_rl_eval_files = None
             self.split_eval_files = None
@@ -422,8 +416,9 @@ class DQN:
                 # traverse the dataset directory to get all files
                 for root, dirs, files in os.walk(path_in):
                     for file in files:
-                        relative_path = os.path.relpath(os.path.join(root, file), path_in)
-                        all_files.append(relative_path)
+                        if file.endswith("xlsx") or file.endswith("csv"):
+                            relative_path = os.path.relpath(os.path.join(root, file), path_in)
+                            all_files.append(relative_path)
                 sampled_files = all_files
 
             # sample files according to different modes
@@ -583,38 +578,38 @@ def rollout_sub(file, path_in, log_dir, is_visible, rollout_queue, result_queue,
 
     except Exception as e:
         # ignore error message
-        # print(f"An error occurred in rollout_sub {file}")
+        print(f"An error occurred in rollout_sub {file}")
         try:
             worker.error_log(log_dir)
         except Exception as e:
-            # print(f"Error in calling worker.error_log: {e}")
+            print(f"Error in calling worker.error_log: {e}")
             pass
-        # try:
-        #     print("room_name is", worker.room_names[worker.room_pointer])
-        # except Exception as e:
-        #     print(f"Error in printing room_name: {e}")
-        #     print("floor_pointor is", worker.floor_pointor)
-        #     print("length of room_names is", len(worker.room_names))
-        #     print("room_pointer is", worker.room_pointer)
-        # try:
-        #     print("Action is ", action)
-        # except Exception as e:
-        #     print(f"Error in printing action: {e}")
-        #     print("Implying reset failure")
-        #     # no initial feasible solution, directly return
-        #     print(traceback.format_exc())
-        #     rollout_queue.put((unique_id, pid, None), timeout=10)
-        #     return 0, 0, None
-        # try:
-        #     print("Mask is ", state['mask'])
-        # except Exception as e:
-        #     print(f"Error in calculating or printing mask: {e}")
-        # try:
-        #     print("value_out is ", value_out)
-        # except Exception as e:
-        #     print(f"Error in printing value_out: {e}")
+        try:
+            print("room_name is", worker.room_names[worker.room_pointer])
+        except Exception as e:
+            print(f"Error in printing room_name: {e}")
+            print("floor_pointor is", worker.floor_pointor)
+            print("length of room_names is", len(worker.room_names))
+            print("room_pointer is", worker.room_pointer)
+        try:
+            print("Action is ", action)
+        except Exception as e:
+            print(f"Error in printing action: {e}")
+            print("Implying reset failure")
+            # no initial feasible solution, directly return
+            print(traceback.format_exc())
+            rollout_queue.put((unique_id, pid, None), timeout=10)
+            return 0, 0, None
+        try:
+            print("Mask is ", state['mask'])
+        except Exception as e:
+            print(f"Error in calculating or printing mask: {e}")
+        try:
+            print("value_out is ", value_out)
+        except Exception as e:
+            print(f"Error in printing value_out: {e}")
 
-        # print(traceback.format_exc())
+        print(traceback.format_exc())
         rollout_queue.put((unique_id, pid, None), timeout=10)
         return 0, 0, None
 
