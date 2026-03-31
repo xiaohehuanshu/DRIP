@@ -226,7 +226,7 @@ class LayoutGenerator(object):
             self.layout_down = None
 
         self.file_name = file
-        if "rural" in self.file_name:
+        if 'staircase' in df.columns:
             env = env + ['white_m1', 'white_m2', 'white_m3', 'white_m4']
             if (self.floor_count > 1) and (self.layout_down is not None):
                 env.append('staircase')
